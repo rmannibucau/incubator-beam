@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <parent>
+    <artifactId>beam-sdks-java-state-storage-parent</artifactId>
+    <groupId>org.apache.beam</groupId>
+    <version>2.5.0-SNAPSHOT</version>
+  </parent>
+  <modelVersion>4.0.0</modelVersion>
+
+  <artifactId>beam-sdks-java-state-storage-hazelcast</artifactId>
+  <name>Apache Beam :: SDKs :: Java :: State Storage</name>
+  <description>Beam SDK Java State Storage provides different state store implementations.</description>
+
+  <properties>
+    <hazelcast.version>3.10-BETA-1</hazelcast.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.hazelcast</groupId>
+      <artifactId>hazelcast</artifactId>
+      <version>${hazelcast.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.hazelcast</groupId>
+      <artifactId>hazelcast-client</artifactId>
+      <version>${hazelcast.version}</version>
+    </dependency>
+  </dependencies>
+</project>

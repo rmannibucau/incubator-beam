@@ -47,5 +47,6 @@
          in the build to be able to capture runner-specific javadoc.
     <module>javadoc</module> -->
     <module>nexmark</module>
+    <module>state-storage</module>
   </modules>
 </project>
