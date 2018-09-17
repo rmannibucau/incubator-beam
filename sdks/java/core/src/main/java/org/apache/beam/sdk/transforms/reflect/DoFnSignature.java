@@ -19,6 +19,7 @@ package org.apache.beam.sdk.transforms.reflect;
 
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Predicates;
+import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
@@ -57,7 +58,7 @@ import org.apache.beam.sdk.values.TypeDescriptor;
 @AutoValue
 public abstract class DoFnSignature {
   /** Class of the original {@link DoFn} from which this signature was produced. */
-  public abstract Class<? extends DoFn<?, ?>> fnClass();
+  public abstract Class<? extends Serializable> fnClass();
 
   /** Whether this {@link DoFn} does a bounded amount of work per element. */
   public abstract PCollection.IsBounded isBoundedPerElement();
@@ -137,7 +138,7 @@ public abstract class DoFnSignature {
 
   @AutoValue.Builder
   abstract static class Builder {
-    abstract Builder setFnClass(Class<? extends DoFn<?, ?>> fnClass);
+    abstract Builder setFnClass(Class<? extends Serializable> fnClass);
 
     abstract Builder setIsBoundedPerElement(PCollection.IsBounded isBounded);
 

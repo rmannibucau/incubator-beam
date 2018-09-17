@@ -17,6 +17,7 @@
  */
 package org.apache.beam.sdk.transforms.reflect;
 
+import java.io.Serializable;
 import org.apache.beam.sdk.transforms.DoFn;
 
 /** Static utilities for working with {@link DoFnInvoker}. */
@@ -32,6 +33,19 @@ public class DoFnInvokers {
    */
   public static <InputT, OutputT> DoFnInvoker<InputT, OutputT> invokerFor(
       DoFn<InputT, OutputT> fn) {
+    return ByteBuddyDoFnInvokerFactory.only().newByteBuddyInvoker(fn);
+  }
+
+  /**
+   * Same as the dofn flavored but based on o.a.b.s.api package.
+   *
+   * @param fn the API DoFn implementation.
+   * @param <InputT> the input type.
+   * @param <OutputT> the output type.
+   * @return the invoker for this dofn.
+   */
+  public static <InputT, OutputT> DoFnInvoker<InputT, OutputT> invokerForApi(
+      final Serializable fn) {
     return ByteBuddyDoFnInvokerFactory.only().newByteBuddyInvoker(fn);
   }
 

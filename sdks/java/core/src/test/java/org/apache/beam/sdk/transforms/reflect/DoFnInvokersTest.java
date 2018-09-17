@@ -23,6 +23,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.eq;
@@ -34,9 +35,13 @@ import static org.mockito.Mockito.when;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.function.Consumer;
 import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.CoderProviders;
 import org.apache.beam.sdk.coders.CoderRegistry;
@@ -58,6 +63,13 @@ import org.apache.beam.sdk.transforms.splittabledofn.RestrictionTracker;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.IntervalWindow;
 import org.apache.beam.sdk.util.UserCodeException;
+import org.apache.beam.sdks.java.api.component.AfterBundle;
+import org.apache.beam.sdks.java.api.component.BeforeBundle;
+import org.apache.beam.sdks.java.api.component.DefineRestriction;
+import org.apache.beam.sdks.java.api.component.OnElement;
+import org.apache.beam.sdks.java.api.component.Setup;
+import org.apache.beam.sdks.java.api.component.Teardown;
+import org.apache.beam.sdks.java.api.component.parameter.Element;
 import org.joda.time.Instant;
 import org.junit.Before;
 import org.junit.Rule;
@@ -113,6 +125,67 @@ public class DoFnInvokersTest {
 
   private void invokeOnTimer(String timerId, DoFn<String, String> fn) {
     DoFnInvokers.invokerFor(fn).invokeOnTimer(timerId, mockArgumentProvider);
+  }
+
+  private static final Collection<String> TEST_API_INVOKER = new LinkedHashSet<>();
+
+  @Test // not yet finished
+  public void testApiInvoker() {
+    class ApiDoFn implements Serializable {
+      @Setup
+      public void onSetup() {
+        synchronized (TEST_API_INVOKER) {
+          TEST_API_INVOKER.add("setup");
+        }
+      }
+
+      @BeforeBundle
+      public void beforeBundle() {
+        synchronized (TEST_API_INVOKER) {
+          TEST_API_INVOKER.add("before_bundle");
+        }
+      }
+
+      @DefineRestriction
+      public long init() {
+        synchronized (TEST_API_INVOKER) {
+          TEST_API_INVOKER.add("restriction");
+        }
+        return -1;
+      }
+
+      @DefineRestriction
+      public void split(final Consumer<Long> restrictions) {
+        synchronized (TEST_API_INVOKER) {
+          TEST_API_INVOKER.add("restriction(" + (restrictions != null) + ")");
+        }
+      }
+
+      @OnElement
+      public void onElement(@Element final String element, final Consumer<String> output) {
+        synchronized (TEST_API_INVOKER) {
+          TEST_API_INVOKER.add("element(" + (element != null) + '/' + (output != null) + ")");
+        }
+      }
+
+      @AfterBundle
+      public void afterBundle(final Consumer<String> consumer) {
+        synchronized (TEST_API_INVOKER) {
+          TEST_API_INVOKER.add("after_bundle(" + (consumer != null) + ")");
+        }
+      }
+
+      @Teardown
+      public void onTearDown() {
+        synchronized (TEST_API_INVOKER) {
+          TEST_API_INVOKER.add("teardown");
+        }
+      }
+    }
+
+    TEST_API_INVOKER.clear();
+    final DoFnInvoker<String, String> invoker = DoFnInvokers.invokerForApi(new ApiDoFn());
+    assertNotNull(invoker);
   }
 
   @Test

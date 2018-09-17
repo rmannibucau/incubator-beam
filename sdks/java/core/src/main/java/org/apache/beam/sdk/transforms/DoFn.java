@@ -24,6 +24,8 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.util.function.Consumer;
+
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.annotations.Experimental;
@@ -327,7 +329,12 @@ public abstract class DoFn<InputT, OutputT> implements Serializable, HasDisplayD
   }
 
   /** Receives values of the given type. */
-  public interface OutputReceiver<T> {
+  public interface OutputReceiver<T> extends Consumer<T> {
+    @Override
+    default void accept(T t) {
+      output(t);
+    }
+
     void output(T output);
 
     void outputWithTimestamp(T output, Instant timestamp);

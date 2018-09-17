@@ -20,10 +20,10 @@ package org.apache.beam.sdk.transforms.reflect;
 import static com.google.common.base.MoreObjects.firstNonNull;
 
 import com.google.auto.value.AutoValue;
+import java.io.Serializable;
 import javax.annotation.Nullable;
 import net.bytebuddy.NamingStrategy;
 import net.bytebuddy.description.type.TypeDescription;
-import org.apache.beam.sdk.transforms.DoFn;
 
 /**
  * A naming strategy for ByteBuddy invokers ({@link DoFnInvoker} and {@link OnTimerInvoker}) that is
@@ -32,12 +32,12 @@ import org.apache.beam.sdk.transforms.DoFn;
 @AutoValue
 abstract class StableInvokerNamingStrategy extends NamingStrategy.AbstractBase {
 
-  public abstract Class<? extends DoFn<?, ?>> getFnClass();
+  public abstract Class<? extends Serializable> getFnClass();
 
   @Nullable
   public abstract String getSuffix();
 
-  public static StableInvokerNamingStrategy forDoFnClass(Class<? extends DoFn<?, ?>> fnClass) {
+  public static StableInvokerNamingStrategy forDoFnClass(Class<? extends Serializable> fnClass) {
     return new AutoValue_StableInvokerNamingStrategy(fnClass, null);
   }
 

@@ -25,6 +25,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.io.BaseEncoding;
+import java.io.Serializable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.ExecutionException;
@@ -128,7 +129,7 @@ class ByteBuddyOnTimerInvokerFactory implements OnTimerInvokerFactory {
    */
   private static Class<? extends OnTimerInvoker<?, ?>> generateOnTimerInvokerClass(
       DoFnSignature signature, String timerId) {
-    Class<? extends DoFn<?, ?>> fnClass = signature.fnClass();
+    Class<? extends Serializable> fnClass = signature.fnClass();
 
     final TypeDescription clazzDescription = new TypeDescription.ForLoadedType(fnClass);
 

@@ -20,6 +20,7 @@ package org.apache.beam.sdk.transforms.reflect;
 import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.beam.sdk.util.common.ReflectHelpers.findClassLoader;
 
+import java.io.Serializable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -143,9 +144,8 @@ public class ByteBuddyDoFnInvokerFactory implements DoFnInvokerFactory {
 
   /** @return the {@link DoFnInvoker} for the given {@link DoFn}. */
   @SuppressWarnings({"unchecked", "rawtypes"})
-  public <InputT, OutputT> DoFnInvoker<InputT, OutputT> newByteBuddyInvoker(
-      DoFn<InputT, OutputT> fn) {
-    return newByteBuddyInvoker(DoFnSignatures.getSignature((Class) fn.getClass()), fn);
+  public <InputT, OutputT> DoFnInvoker<InputT, OutputT> newByteBuddyInvoker(Serializable fn) {
+    return newByteBuddyInvoker(DoFnSignatures.getSignature(fn.getClass()), fn);
   }
 
   /**
@@ -203,7 +203,7 @@ public class ByteBuddyDoFnInvokerFactory implements DoFnInvokerFactory {
 
   /** @return the {@link DoFnInvoker} for the given {@link DoFn}. */
   public <InputT, OutputT> DoFnInvoker<InputT, OutputT> newByteBuddyInvoker(
-      DoFnSignature signature, DoFn<InputT, OutputT> fn) {
+      DoFnSignature signature, Serializable fn) {
     checkArgument(
         signature.fnClass().equals(fn.getClass()),
         "Signature is for class %s, but fn is of class %s",
@@ -218,7 +218,8 @@ public class ByteBuddyDoFnInvokerFactory implements DoFnInvokerFactory {
 
       for (OnTimerMethod onTimerMethod : signature.onTimerMethods().values()) {
         invoker.addOnTimerInvoker(
-            onTimerMethod.id(), OnTimerInvokers.forTimer(fn, onTimerMethod.id()));
+            // only DoFn have timers for now
+            onTimerMethod.id(), OnTimerInvokers.forTimer(DoFn.class.cast(fn), onTimerMethod.id()));
       }
 
       return invoker;
@@ -238,7 +239,7 @@ public class ByteBuddyDoFnInvokerFactory implements DoFnInvokerFactory {
    * DoFn} class.
    */
   private synchronized Constructor<?> getByteBuddyInvokerConstructor(DoFnSignature signature) {
-    Class<? extends DoFn<?, ?>> fnClass = signature.fnClass();
+    Class<? extends Serializable> fnClass = signature.fnClass();
     Constructor<?> constructor = byteBuddyInvokerConstructorCache.get(fnClass);
     if (constructor == null) {
       Class<? extends DoFnInvoker<?, ?>> invokerClass = generateInvokerClass(signature);
@@ -289,7 +290,7 @@ public class ByteBuddyDoFnInvokerFactory implements DoFnInvokerFactory {
 
   /** Generates a {@link DoFnInvoker} class for the given {@link DoFnSignature}. */
   private static Class<? extends DoFnInvoker<?, ?>> generateInvokerClass(DoFnSignature signature) {
-    Class<? extends DoFn<?, ?>> fnClass = signature.fnClass();
+    Class<? extends Serializable> fnClass = signature.fnClass();
 
     final TypeDescription clazzDescription = new TypeDescription.ForLoadedType(fnClass);
 

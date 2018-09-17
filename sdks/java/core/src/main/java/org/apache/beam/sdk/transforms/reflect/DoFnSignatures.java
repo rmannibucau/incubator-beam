@@ -18,6 +18,7 @@
 package org.apache.beam.sdk.transforms.reflect;
 
 import static com.google.common.base.Preconditions.checkState;
+import static java.util.Optional.ofNullable;
 
 import com.google.auto.value.AutoValue;
 import com.google.common.annotations.VisibleForTesting;
@@ -25,6 +26,7 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
@@ -42,6 +44,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
+
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -73,6 +77,13 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.Row;
 import org.apache.beam.sdk.values.TypeDescriptor;
 import org.apache.beam.sdk.values.TypeParameter;
+import org.apache.beam.sdks.java.api.component.AfterBundle;
+import org.apache.beam.sdks.java.api.component.BeforeBundle;
+import org.apache.beam.sdks.java.api.component.DefineRestriction;
+import org.apache.beam.sdks.java.api.component.OnElement;
+import org.apache.beam.sdks.java.api.component.Setup;
+import org.apache.beam.sdks.java.api.component.Teardown;
+import org.apache.beam.sdks.java.api.component.parameter.Element;
 import org.joda.time.Instant;
 
 /** Utilities for working with {@link DoFnSignature}. See {@link #getSignature}. */
@@ -131,12 +142,12 @@ public class DoFnSignatures {
               Parameter.StateParameter.class);
 
   /** @return the {@link DoFnSignature} for the given {@link DoFn} instance. */
-  public static <FnT extends DoFn<?, ?>> DoFnSignature signatureForDoFn(FnT fn) {
+  public static <FnT extends Serializable> DoFnSignature signatureForDoFn(FnT fn) {
     return getSignature(fn.getClass());
   }
 
   /** @return the {@link DoFnSignature} for the given {@link DoFn} subclass. */
-  public static synchronized <FnT extends DoFn<?, ?>> DoFnSignature getSignature(Class<FnT> fn) {
+  public static synchronized <FnT extends Serializable> DoFnSignature getSignature(Class<FnT> fn) {
     return signatureCache.computeIfAbsent(fn, k -> parseSignature(fn));
   }
 
@@ -309,18 +320,19 @@ public class DoFnSignatures {
   }
 
   /** Analyzes a given {@link DoFn} class and extracts its {@link DoFnSignature}. */
-  private static DoFnSignature parseSignature(Class<? extends DoFn<?, ?>> fnClass) {
+  private static DoFnSignature parseSignature(Class<? extends Serializable> fnClass) {
     DoFnSignature.Builder signatureBuilder = DoFnSignature.builder();
 
     ErrorReporter errors = new ErrorReporter(null, fnClass.getName());
-    errors.checkArgument(DoFn.class.isAssignableFrom(fnClass), "Must be subtype of DoFn");
+    errors.checkArgument(
+        Serializable.class.isAssignableFrom(fnClass), "Must be subtype of Serializable");
     signatureBuilder.setFnClass(fnClass);
 
-    TypeDescriptor<? extends DoFn<?, ?>> fnT = TypeDescriptor.of(fnClass);
+    TypeDescriptor<? extends Serializable> fnT = TypeDescriptor.of(fnClass);
 
     // Extract the input and output type, and whether the fn is bounded.
-    TypeDescriptor<?> inputT = null;
-    TypeDescriptor<?> outputT = null;
+    TypeDescriptor<?> inputT = TypeDescriptor.of(Object.class);
+    TypeDescriptor<?> outputT = TypeDescriptor.of(Object.class);
     for (TypeDescriptor<?> supertype : fnT.getTypes()) {
       if (!supertype.getRawType().equals(DoFn.class)) {
         continue;
@@ -329,7 +341,9 @@ public class DoFnSignatures {
       inputT = TypeDescriptor.of(args[0]);
       outputT = TypeDescriptor.of(args[1]);
     }
-    errors.checkNotNull(inputT, "Unable to determine input type");
+    if (DoFn.class.isAssignableFrom(fnClass)) {
+      errors.checkNotNull(inputT, "Unable to determine input type");
+    } // else (api) skipped
 
     // Find the state and timer declarations in advance of validating
     // method parameter lists
@@ -339,21 +353,47 @@ public class DoFnSignatures {
     fnContext.addFieldAccessDeclarations(analyzeFieldAccessDeclaration(errors, fnClass).values());
 
     Method processElementMethod =
-        findAnnotatedMethod(errors, DoFn.ProcessElement.class, fnClass, true);
-    Method startBundleMethod = findAnnotatedMethod(errors, DoFn.StartBundle.class, fnClass, false);
+        ofNullable(findAnnotatedMethod(errors, DoFn.ProcessElement.class, fnClass))
+            .orElseGet(() -> findAnnotatedMethod(errors, OnElement.class, fnClass));
+    errors.checkArgument(
+        processElementMethod != null, "No method annotated with @ProcessElement found");
+
+    Method startBundleMethod =
+        ofNullable(findAnnotatedMethod(errors, DoFn.StartBundle.class, fnClass))
+            .orElseGet(() -> findAnnotatedMethod(errors, BeforeBundle.class, fnClass));
     Method finishBundleMethod =
-        findAnnotatedMethod(errors, DoFn.FinishBundle.class, fnClass, false);
-    Method setupMethod = findAnnotatedMethod(errors, DoFn.Setup.class, fnClass, false);
-    Method teardownMethod = findAnnotatedMethod(errors, DoFn.Teardown.class, fnClass, false);
+        ofNullable(findAnnotatedMethod(errors, DoFn.FinishBundle.class, fnClass))
+            .orElseGet(() -> findAnnotatedMethod(errors, AfterBundle.class, fnClass));
+    Method setupMethod =
+        ofNullable(findAnnotatedMethod(errors, DoFn.Setup.class, fnClass))
+            .orElseGet(() -> findAnnotatedMethod(errors, Setup.class, fnClass));
+    Method teardownMethod =
+        ofNullable(findAnnotatedMethod(errors, DoFn.Teardown.class, fnClass))
+            .orElseGet(() -> findAnnotatedMethod(errors, Teardown.class, fnClass));
     Method onWindowExpirationMethod =
-        findAnnotatedMethod(errors, DoFn.OnWindowExpiration.class, fnClass, false);
+        findAnnotatedMethod(errors, DoFn.OnWindowExpiration.class, fnClass);
     Method getInitialRestrictionMethod =
-        findAnnotatedMethod(errors, DoFn.GetInitialRestriction.class, fnClass, false);
+        ofNullable(findAnnotatedMethod(errors, DoFn.GetInitialRestriction.class, fnClass))
+            .orElseGet(
+                () ->
+                    declaredMethodsWithAnnotation(DefineRestriction.class, fnClass, DoFn.class)
+                        .stream()
+                        .filter(m -> m.getParameterCount() == 0 && m.getReturnType() != void.class)
+                        .findFirst()
+                        .orElse(null));
     Method splitRestrictionMethod =
-        findAnnotatedMethod(errors, DoFn.SplitRestriction.class, fnClass, false);
+        ofNullable(findAnnotatedMethod(errors, DoFn.SplitRestriction.class, fnClass))
+            .orElseGet(
+                () ->
+                    declaredMethodsWithAnnotation(DefineRestriction.class, fnClass, DoFn.class)
+                        .stream()
+                        .filter(
+                            m -> m.getReturnType() == getInitialRestrictionMethod.getReturnType())
+                        .findFirst()
+                        .orElse(null));
     Method getRestrictionCoderMethod =
-        findAnnotatedMethod(errors, DoFn.GetRestrictionCoder.class, fnClass, false);
-    Method newTrackerMethod = findAnnotatedMethod(errors, DoFn.NewTracker.class, fnClass, false);
+        findAnnotatedMethod(errors, DoFn.GetRestrictionCoder.class, fnClass);
+    Method newTrackerMethod = findAnnotatedMethod(errors, DoFn.NewTracker.class, fnClass);
 
     Collection<Method> onTimerMethods =
         declaredMethodsWithAnnotation(DoFn.OnTimer.class, fnClass, DoFn.class);
@@ -390,6 +430,8 @@ public class DoFnSignatures {
           DoFn.OnTimer.class.getSimpleName(),
           decl.id());
     }
+
+    // TODO: enhance API error reporting, likely using aliasing in the error collection?
 
     ErrorReporter processElementErrors =
         errors.forMethod(DoFn.ProcessElement.class, processElementMethod);
@@ -495,7 +537,7 @@ public class DoFnSignatures {
    * </ol>
    */
   private static PCollection.IsBounded inferBoundedness(
-      TypeDescriptor<? extends DoFn> fnT,
+      TypeDescriptor<? extends Serializable> fnT,
       DoFnSignature.ProcessElementMethod processElement,
       ErrorReporter errors) {
     PCollection.IsBounded isBounded = null;
@@ -713,7 +755,7 @@ public class DoFnSignatures {
   @VisibleForTesting
   static DoFnSignature.OnTimerMethod analyzeOnTimerMethod(
       ErrorReporter errors,
-      TypeDescriptor<? extends DoFn<?, ?>> fnClass,
+      TypeDescriptor<? extends Serializable> fnClass,
       Method m,
       String timerId,
       TypeDescriptor<?> inputT,
@@ -737,7 +779,6 @@ public class DoFnSignatures {
               onTimerErrors,
               fnContext,
               methodContext,
-              fnClass,
               ParameterDescription.of(
                   m,
                   i,
@@ -758,7 +799,7 @@ public class DoFnSignatures {
   @VisibleForTesting
   static DoFnSignature.OnWindowExpirationMethod analyzeOnWindowExpirationMethod(
       ErrorReporter errors,
-      TypeDescriptor<? extends DoFn<?, ?>> fnClass,
+      TypeDescriptor<? extends Serializable> fnClass,
       Method m,
       TypeDescriptor<?> inputT,
       TypeDescriptor<?> outputT,
@@ -781,7 +822,6 @@ public class DoFnSignatures {
               onWindowExpirationErrors,
               fnContext,
               methodContext,
-              fnClass,
               ParameterDescription.of(
                   m,
                   i,
@@ -802,7 +842,7 @@ public class DoFnSignatures {
   @VisibleForTesting
   static DoFnSignature.ProcessElementMethod analyzeProcessElementMethod(
       ErrorReporter errors,
-      TypeDescriptor<? extends DoFn<?, ?>> fnClass,
+      TypeDescriptor<? extends Serializable> fnClass,
       Method m,
       TypeDescriptor<?> inputT,
       TypeDescriptor<?> outputT,
@@ -828,7 +868,6 @@ public class DoFnSignatures {
               errors.forMethod(DoFn.ProcessElement.class, m),
               fnContext,
               methodContext,
-              fnClass,
               ParameterDescription.of(
                   m,
                   i,
@@ -879,7 +918,6 @@ public class DoFnSignatures {
       ErrorReporter methodErrors,
       FnAnalysisContext fnContext,
       MethodAnalysisContext methodContext,
-      TypeDescriptor<? extends DoFn<?, ?>> fnClass,
       ParameterDescription param,
       TypeDescriptor<?> inputT,
       TypeDescriptor<?> outputT) {
@@ -893,14 +931,14 @@ public class DoFnSignatures {
     ErrorReporter paramErrors = methodErrors.forParameter(param);
 
     if (hasElementAnnotation(param.getAnnotations())) {
-      if (paramT.equals(TypeDescriptor.of(Row.class)) && !paramT.equals(inputT)) {
+      if (paramT.equals(TypeDescriptor.of(Row.class)) && !paramT.isSubtypeOf(inputT)) {
         // a null id means that there is no registered FieldAccessDescriptor, so we should default
         // to all fields. If the input type of the DoFn is already Row, then no need to do
         // anything special.
         return Parameter.rowParameter(null);
       } else {
         methodErrors.checkArgument(
-            paramT.equals(inputT), "@Element argument must have type %s", inputT);
+          paramT.isSubtypeOf(inputT), "@Element argument must have type %s", inputT);
         return Parameter.elementParameter(paramT);
       }
     } else if (hasTimestampAnnotation(param.getAnnotations())) {
@@ -930,7 +968,7 @@ public class DoFnSignatures {
           "Multiple %s parameters",
           BoundedWindow.class.getSimpleName());
       return Parameter.boundedWindow((TypeDescriptor<? extends BoundedWindow>) paramT);
-    } else if (rawType.equals(OutputReceiver.class)) {
+    } else if (rawType.equals(OutputReceiver.class) || rawType.equals(Consumer.class)) {
       // It's a schema row receiver if it's an OutputReceiver<Row> _and_ the output type is not
       // already Row.
       boolean schemaRowReceiver =
@@ -939,7 +977,7 @@ public class DoFnSignatures {
       if (!schemaRowReceiver) {
         TypeDescriptor<?> expectedReceiverT = outputReceiverTypeOf(outputT);
         paramErrors.checkArgument(
-            paramT.equals(expectedReceiverT),
+            firstArg(paramT).isSubtypeOf(firstArg(expectedReceiverT)),
             "OutputReceiver should be parameterized by %s",
             outputT);
       }
@@ -1052,6 +1090,12 @@ public class DoFnSignatures {
     }
   }
 
+  private static TypeDescriptor<?> firstArg(final TypeDescriptor<?> paramT) {
+    final ParameterizedType parameterizedType = ParameterizedType.class.cast(paramT.getType());
+    final Type[] arguments = parameterizedType.getActualTypeArguments();
+    return TypeDescriptor.of(arguments[0]);
+  }
+
   @Nullable
   private static String getTimerId(List<Annotation> annotations) {
     DoFn.TimerId stateId = findFirstOfType(annotations, DoFn.TimerId.class);
@@ -1079,7 +1123,7 @@ public class DoFnSignatures {
 
   private static boolean hasElementAnnotation(List<Annotation> annotations) {
     for (Annotation anno : annotations) {
-      if (anno.annotationType().equals(DoFn.Element.class)) {
+      if (anno.annotationType().equals(DoFn.Element.class) || anno.annotationType() == Element.class) {
         return true;
       }
     }
@@ -1123,7 +1167,7 @@ public class DoFnSignatures {
   @VisibleForTesting
   static DoFnSignature.BundleMethod analyzeStartBundleMethod(
       ErrorReporter errors,
-      TypeDescriptor<? extends DoFn<?, ?>> fnT,
+      TypeDescriptor<? extends Serializable> fnT,
       Method m,
       TypeDescriptor<?> inputT,
       TypeDescriptor<?> outputT) {
@@ -1141,7 +1185,7 @@ public class DoFnSignatures {
   @VisibleForTesting
   static DoFnSignature.BundleMethod analyzeFinishBundleMethod(
       ErrorReporter errors,
-      TypeDescriptor<? extends DoFn<?, ?>> fnT,
+      TypeDescriptor<? extends Serializable> fnT,
       Method m,
       TypeDescriptor<?> inputT,
       TypeDescriptor<?> outputT) {
@@ -1150,7 +1194,7 @@ public class DoFnSignatures {
     Type[] params = m.getGenericParameterTypes();
     errors.checkArgument(
         params.length == 0
-            || (params.length == 1 && fnT.resolveType(params[0]).equals(expectedContextT)),
+            || (params.length == 1 && fnT.resolveType(params[0]).isSubtypeOf(expectedContextT)),
         "Must take a single argument of type %s",
         formatType(expectedContextT));
     return DoFnSignature.BundleMethod.create(m);
@@ -1166,7 +1210,7 @@ public class DoFnSignatures {
   @VisibleForTesting
   static DoFnSignature.GetInitialRestrictionMethod analyzeGetInitialRestrictionMethod(
       ErrorReporter errors,
-      TypeDescriptor<? extends DoFn> fnT,
+      TypeDescriptor<? extends Serializable> fnT,
       Method m,
       TypeDescriptor<?> inputT) {
     // Method is of the form:
@@ -1194,7 +1238,7 @@ public class DoFnSignatures {
   @VisibleForTesting
   static DoFnSignature.SplitRestrictionMethod analyzeSplitRestrictionMethod(
       ErrorReporter errors,
-      TypeDescriptor<? extends DoFn> fnT,
+      TypeDescriptor<? extends Serializable> fnT,
       Method m,
       TypeDescriptor<?> inputT) {
     // Method is of the form:
@@ -1271,7 +1315,7 @@ public class DoFnSignatures {
 
   @VisibleForTesting
   static DoFnSignature.GetRestrictionCoderMethod analyzeGetRestrictionCoderMethod(
-      ErrorReporter errors, TypeDescriptor<? extends DoFn> fnT, Method m) {
+      ErrorReporter errors, TypeDescriptor<? extends Serializable> fnT, Method m) {
     errors.checkArgument(m.getParameterTypes().length == 0, "Must have zero arguments");
     TypeDescriptor<?> resT = fnT.resolveType(m.getGenericReturnType());
     errors.checkArgument(
@@ -1294,7 +1338,7 @@ public class DoFnSignatures {
 
   @VisibleForTesting
   static DoFnSignature.NewTrackerMethod analyzeNewTrackerMethod(
-      ErrorReporter errors, TypeDescriptor<? extends DoFn> fnT, Method m) {
+      ErrorReporter errors, TypeDescriptor<? extends Serializable> fnT, Method m) {
     // Method is of the form:
     // @NewTracker
     // TrackerT newTracker(RestrictionT restriction);
@@ -1463,11 +1507,10 @@ public class DoFnSignatures {
 
   @Nullable
   private static Method findAnnotatedMethod(
-      ErrorReporter errors, Class<? extends Annotation> anno, Class<?> fnClazz, boolean required) {
+      ErrorReporter errors, Class<? extends Annotation> anno, Class<?> fnClazz) {
     Collection<Method> matches = declaredMethodsWithAnnotation(anno, fnClazz, DoFn.class);
 
     if (matches.isEmpty()) {
-      errors.checkArgument(!required, "No method annotated with @%s found", anno.getSimpleName());
       return null;
     }
 
