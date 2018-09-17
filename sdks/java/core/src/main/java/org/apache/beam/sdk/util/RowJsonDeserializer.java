@@ -18,15 +18,6 @@
 package org.apache.beam.sdk.util;
 
 import static java.util.stream.Collectors.toList;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.BOOLEAN;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.BYTE;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.DECIMAL;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.DOUBLE;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.FLOAT;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.INT16;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.INT32;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.INT64;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.STRING;
 import static org.apache.beam.sdk.util.RowJsonValueExtractors.booleanValueExtractor;
 import static org.apache.beam.sdk.util.RowJsonValueExtractors.byteValueExtractor;
 import static org.apache.beam.sdk.util.RowJsonValueExtractors.decimalValueExtractor;
@@ -37,6 +28,15 @@ import static org.apache.beam.sdk.util.RowJsonValueExtractors.longValueExtractor
 import static org.apache.beam.sdk.util.RowJsonValueExtractors.shortValueExtractor;
 import static org.apache.beam.sdk.util.RowJsonValueExtractors.stringValueExtractor;
 import static org.apache.beam.sdk.values.Row.toRow;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.BOOLEAN;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.BYTE;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.DECIMAL;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.DOUBLE;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.FLOAT;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.INT16;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.INT32;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.INT64;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.STRING;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -51,9 +51,9 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.schemas.Schema;
 import org.apache.beam.sdk.schemas.Schema.FieldType;
-import org.apache.beam.sdk.schemas.Schema.TypeName;
 import org.apache.beam.sdk.util.RowJsonValueExtractors.ValueExtractor;
 import org.apache.beam.sdk.values.Row;
+import org.apache.beam.sdks.java.api.row.Schema.TypeName;
 
 /**
  * Jackson deserializer for {@link Row Rows}.
@@ -92,7 +92,12 @@ public class RowJsonDeserializer extends StdDeserializer<Row> {
 
   /** Creates a deserializer for a {@link Row} {@link Schema}. */
   public static RowJsonDeserializer forSchema(Schema schema) {
-    schema.getFields().forEach(RowJsonValidation::verifyFieldTypeSupported);
+    schema
+        .getFields()
+        .stream()
+        .filter(Schema.Field.class::isInstance)
+        .map(Schema.Field.class::cast)
+        .forEach(RowJsonValidation::verifyFieldTypeSupported);
     return new RowJsonDeserializer(schema);
   }
 
@@ -149,6 +154,8 @@ public class RowJsonDeserializer extends StdDeserializer<Row> {
         .rowSchema()
         .getFields()
         .stream()
+        .filter(Schema.Field.class::isInstance)
+        .map(Schema.Field.class::cast)
         .map(
             schemaField ->
                 extractJsonNodeValue(

@@ -17,15 +17,15 @@
  */
 package org.apache.beam.sdk.util;
 
-import static org.apache.beam.sdk.schemas.Schema.TypeName.BOOLEAN;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.BYTE;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.DECIMAL;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.DOUBLE;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.FLOAT;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.INT16;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.INT32;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.INT64;
-import static org.apache.beam.sdk.schemas.Schema.TypeName.STRING;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.BOOLEAN;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.BYTE;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.DECIMAL;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.DOUBLE;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.FLOAT;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.INT16;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.INT32;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.INT64;
+import static org.apache.beam.sdks.java.api.row.Schema.TypeName.STRING;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.beam.sdk.schemas.Schema;
@@ -48,13 +48,17 @@ class RowJsonValidation {
   static void verifyFieldTypeSupported(Schema.FieldType fieldType) {
     Schema.TypeName fieldTypeName = fieldType.getTypeName();
 
-    if (fieldTypeName.isCompositeType()) {
+    if (Schema.TypeNameHelper.isCompositeType(fieldTypeName)) {
       Schema rowFieldSchema = fieldType.getRowSchema();
-      rowFieldSchema.getFields().forEach(RowJsonValidation::verifyFieldTypeSupported);
+      rowFieldSchema
+          .getFields()
+          .stream()
+          .map(Schema.Field.class::cast)
+          .forEach(RowJsonValidation::verifyFieldTypeSupported);
       return;
     }
 
-    if (fieldTypeName.isCollectionType()) {
+    if (Schema.TypeNameHelper.isCollectionType(fieldTypeName)) {
       verifyFieldTypeSupported(fieldType.getCollectionElementType());
       return;
     }

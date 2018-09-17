@@ -294,7 +294,7 @@ public interface Row extends Serializable {
    * @param fieldIndex the index of the field to extract.
    * @return the extracted value from the row.
    */
-  default ZonedDateTime getDateTime(final int fieldIndex) {
+  default ZonedDateTime getZonedDateTime(final int fieldIndex) {
     return getValue(fieldIndex);
   }
 
@@ -305,7 +305,7 @@ public interface Row extends Serializable {
    * @param fieldName the name of the field to extract.
    * @return the extracted value from the row.
    */
-  default ZonedDateTime getDateTime(final String fieldName) {
+  default ZonedDateTime getZonedDateTime(final String fieldName) {
     return getValue(fieldName);
   }
 

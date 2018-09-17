@@ -205,7 +205,8 @@ public class StaticSchemaInference {
         FieldType keyType = fieldFromType(TypeDescriptor.of(params[0]), getTypesForClass);
         FieldType valueType = fieldFromType(TypeDescriptor.of(params[1]), getTypesForClass);
         checkArgument(
-            keyType.getTypeName().isPrimitiveType(), "Only primitive types can be map keys");
+            Schema.TypeNameHelper.isPrimitiveType(keyType.getTypeName()),
+            "Only primitive types can be map keys");
         return FieldType.map(keyType, valueType);
       } else {
         throw new RuntimeException("Cannot infer schema from unparameterized map.");

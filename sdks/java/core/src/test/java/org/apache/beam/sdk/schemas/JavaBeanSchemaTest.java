@@ -101,10 +101,10 @@ public class JavaBeanSchemaTest {
 
     assertEquals(12, row.getFieldCount());
     assertEquals("string", row.getString("str"));
-    assertEquals((byte) 1, row.getByte("aByte"));
-    assertEquals((short) 2, row.getInt16("aShort"));
-    assertEquals((int) 3, row.getInt32("anInt"));
-    assertEquals((long) 4, row.getInt64("aLong"));
+    assertEquals((byte) 1, row.getByte("aByte").byteValue());
+    assertEquals((short) 2, row.getInt16("aShort").shortValue());
+    assertEquals((int) 3, row.getInt32("anInt").intValue());
+    assertEquals((long) 4, row.getInt64("aLong").longValue());
     assertEquals(true, row.getBoolean("aBoolean"));
     assertEquals(DATE.toInstant(), row.getDateTime("dateTime"));
     assertEquals(DATE.toInstant(), row.getDateTime("instant"));
@@ -155,10 +155,10 @@ public class JavaBeanSchemaTest {
 
     Row nestedRow = row.getRow("nested");
     assertEquals("string", nestedRow.getString("str"));
-    assertEquals((byte) 1, nestedRow.getByte("aByte"));
-    assertEquals((short) 2, nestedRow.getInt16("aShort"));
-    assertEquals((int) 3, nestedRow.getInt32("anInt"));
-    assertEquals((long) 4, nestedRow.getInt64("aLong"));
+    assertEquals((byte) 1, nestedRow.getByte("aByte").byteValue());
+    assertEquals((short) 2, nestedRow.getInt16("aShort").shortValue());
+    assertEquals((int) 3, nestedRow.getInt32("anInt").intValue());
+    assertEquals((long) 4, nestedRow.getInt64("aLong").longValue());
     assertEquals(true, nestedRow.getBoolean("aBoolean"));
     assertEquals(DATE.toInstant(), nestedRow.getDateTime("dateTime"));
     assertEquals(DATE.toInstant(), nestedRow.getDateTime("instant"));

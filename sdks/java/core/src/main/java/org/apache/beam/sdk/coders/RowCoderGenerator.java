@@ -51,9 +51,8 @@ import net.bytebuddy.implementation.bytecode.member.MethodReturn;
 import net.bytebuddy.implementation.bytecode.member.MethodVariableAccess;
 import net.bytebuddy.matcher.ElementMatchers;
 import org.apache.beam.sdk.schemas.Schema;
-import org.apache.beam.sdk.schemas.Schema.Field;
-import org.apache.beam.sdk.schemas.Schema.TypeName;
 import org.apache.beam.sdk.values.Row;
+import org.apache.beam.sdks.java.api.row.Schema.TypeName;
 
 /**
  * A utility for automatically generating a {@link Coder} for {@link Row} objects corresponding to a
@@ -148,7 +147,11 @@ public abstract class RowCoderGenerator {
 
   private static DynamicType.Builder<Coder> implementMethods(
       Schema schema, DynamicType.Builder<Coder> builder) {
-    boolean hasNullableFields = schema.getFields().stream().anyMatch(Field::getNullable);
+    boolean hasNullableFields =
+        schema
+            .getFields()
+            .stream()
+            .anyMatch(org.apache.beam.sdks.java.api.row.Schema.Field::getNullable);
     return builder
         .defineMethod("getSchema", Schema.class, Visibility.PRIVATE, Ownership.STATIC)
         .intercept(FixedValue.reference(schema))

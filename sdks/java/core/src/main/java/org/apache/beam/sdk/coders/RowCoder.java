@@ -30,9 +30,9 @@ import javax.annotation.Nullable;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.schemas.Schema;
 import org.apache.beam.sdk.schemas.Schema.FieldType;
-import org.apache.beam.sdk.schemas.Schema.TypeName;
 import org.apache.beam.sdk.util.SerializableUtils;
 import org.apache.beam.sdk.values.Row;
+import org.apache.beam.sdks.java.api.row.Schema.TypeName;
 
 /** A {@link Coder} for {@link Row}. It wraps the {@link Coder} for each element directly. */
 @Experimental

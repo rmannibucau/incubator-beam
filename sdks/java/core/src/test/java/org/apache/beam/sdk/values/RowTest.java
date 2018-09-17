@@ -91,10 +91,10 @@ public class RowTest {
                 (byte) 0, (short) 1, 2, 3L, new BigDecimal(2.3), 1.2f, 3.0d, "str", dateTime, false)
             .build();
 
-    assertEquals(0, row.getByte("f_byte"));
-    assertEquals(1, row.getInt16("f_int16"));
-    assertEquals(2, row.getInt32("f_int32"));
-    assertEquals(3, row.getInt64("f_int64"));
+    assertEquals(0, row.getByte("f_byte").byteValue());
+    assertEquals(1, row.getInt16("f_int16").shortValue());
+    assertEquals(2, row.getInt32("f_int32").longValue());
+    assertEquals(3, row.getInt64("f_int64").longValue());
     assertEquals(new BigDecimal(2.3), row.getDecimal("f_decimal"));
     assertEquals(1.2f, row.getFloat("f_float"), 0);
     assertEquals(3.0d, row.getDouble("f_double"), 0);
@@ -117,7 +117,7 @@ public class RowTest {
             .collect(toSchema());
     Row nestedRow = Row.withSchema(nestedType).addValues("foobar").build();
     Row row = Row.withSchema(type).addValues(42, nestedRow).build();
-    assertEquals(42, row.getInt32("f_int"));
+    assertEquals(42, row.getInt32("f_int").intValue());
     assertEquals("foobar", row.getRow("nested").getString("f1_str"));
   }
 

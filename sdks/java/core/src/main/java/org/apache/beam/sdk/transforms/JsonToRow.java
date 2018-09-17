@@ -24,10 +24,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.schemas.Schema;
-import org.apache.beam.sdk.schemas.Schema.TypeName;
 import org.apache.beam.sdk.util.RowJsonDeserializer;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.Row;
+import org.apache.beam.sdks.java.api.row.Schema.TypeName;
 
 /**
  * <i>Experimental</i>
