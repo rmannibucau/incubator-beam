@@ -36,13 +36,13 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.RowCoder;
-import org.apache.beam.sdk.schemas.Schema;
-import org.apache.beam.sdk.schemas.Schema.Field;
-import org.apache.beam.sdk.schemas.Schema.FieldType;
-import org.apache.beam.sdk.schemas.Schema.TypeName;
 import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.Row;
+import org.apache.beam.sdks.java.api.row.Schema;
+import org.apache.beam.sdks.java.api.row.Schema.Field;
+import org.apache.beam.sdks.java.api.row.Schema.FieldType;
+import org.apache.beam.sdks.java.api.row.Schema.TypeName;
 import org.joda.time.DateTime;
 import org.joda.time.Instant;
 import org.joda.time.chrono.ISOChronology;
@@ -124,7 +124,7 @@ public class BigQueryUtils {
   }
 
   private static List<TableFieldSchema> toTableFieldSchema(Schema schema) {
-    List<TableFieldSchema> fields = new ArrayList<TableFieldSchema>(schema.getFieldCount());
+    List<TableFieldSchema> fields = new ArrayList<TableFieldSchema>(schema.getFields().size());
     for (Field schemaField : schema.getFields()) {
       FieldType type = schemaField.getType();
 
@@ -201,13 +201,18 @@ public class BigQueryUtils {
   }
 
   public static Row toBeamRow(GenericRecord record, Schema schema) {
-    List<Object> values = new ArrayList();
+    List<Object> values = new ArrayList<>();
     for (int i = 0; i < record.getSchema().getFields().size(); i++) {
       org.apache.avro.Schema.Field avroField = record.getSchema().getFields().get(i);
       values.add(AvroUtils.convertAvroFormat(schema.getField(i), record.get(avroField.name())));
     }
 
-    return Row.withSchema(schema).addValues(values).build();
+    return Row.withSchema(org.apache.beam.sdk.schemas.Schema.builder()
+            .addFields(schema.getFields().stream()
+              .map(org.apache.beam.sdk.schemas.Schema.Field.class::cast)
+              .collect(toList()))
+            .build())
+            .addValues(values).build();
   }
 
   public static TableRow toTableRow(Row row) {
@@ -271,10 +276,14 @@ public class BigQueryUtils {
             .map(index -> jsonBqRow.getF().get(index).getV())
             .collect(toList());
 
-    return IntStream.range(0, rowSchema.getFieldCount())
+    return IntStream.range(0, rowSchema.getFields().size())
         .boxed()
         .map(index -> toBeamValue(rowSchema.getField(index).getType(), rawJsonValues.get(index)))
-        .collect(toRow(rowSchema));
+        .collect(toRow(org.apache.beam.sdk.schemas.Schema.builder()
+                .addFields(rowSchema.getFields().stream()
+                  .map(org.apache.beam.sdk.schemas.Schema.Field.class::cast)
+                  .collect(toList()))
+                .build()));
   }
 
   private static Object toBeamValue(FieldType fieldType, Object jsonBQValue) {

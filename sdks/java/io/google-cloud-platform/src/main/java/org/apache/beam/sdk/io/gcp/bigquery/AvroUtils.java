@@ -19,15 +19,14 @@ package org.apache.beam.sdk.io.gcp.bigquery;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.beam.sdk.schemas.Schema.Field;
-import org.apache.beam.sdk.schemas.Schema.TypeName;
+import org.apache.beam.sdks.java.api.row.Schema;
 import org.joda.time.Instant;
 
 /** Utils to help convert Apache Avro types to Beam types. */
 public class AvroUtils {
-  public static Object convertAvroFormat(Field beamField, Object value) throws RuntimeException {
+  public static Object convertAvroFormat(Schema.Field beamField, Object value) throws RuntimeException {
     Object ret;
-    TypeName beamFieldTypeName = beamField.getType().getTypeName();
+    Schema.TypeName beamFieldTypeName = beamField.getType().getTypeName();
     switch (beamFieldTypeName) {
       case INT16:
       case INT32:
@@ -59,7 +58,7 @@ public class AvroUtils {
     return ret;
   }
 
-  private static Object convertAvroArray(Field beamField, Object value) {
+  private static Object convertAvroArray(Schema.Field beamField, Object value) {
     // Check whether the type of array element is equal.
     List<Object> values = (List<Object>) value;
     List<Object> ret = new ArrayList();
@@ -82,7 +81,7 @@ public class AvroUtils {
     }
   }
 
-  private static Object convertAvroPrimitiveTypes(TypeName beamType, Object value) {
+  private static Object convertAvroPrimitiveTypes(Schema.TypeName beamType, Object value) {
     switch (beamType) {
       case BYTE:
         return ((Long) value).byteValue();
